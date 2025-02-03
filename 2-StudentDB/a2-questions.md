@@ -39,7 +39,7 @@ Please answer the following questions and submit in your repo for the second ass
     ```
     Can you think of any reason why the above implementation would be a **very bad idea** using the C programming language?  Specifically, address why the above code introduces a subtle bug that could be hard to identify at runtime? 
 
-    > **ANSWER:** The bug in questions appears from returning the address of a local (stack-allocated) variable (&student), because when the function returns, the stack frame is destroyed, and the pointer points to invalid memory, which results in undefined behavior, and it's hard to detect because it even might work in some cases, but at the same time cause crashes or data corruption and we can't really predict it. Hopefully my explanation is clear enough to understand why this implementation is bad in C.
+    > **ANSWER:** The bug in questions appears from returning the address of a local (stack-allocated) variable (&student), because when the function returns, the stack frame is destroyed, and the pointer points to invalid memory, which results in undefined behavior, and it's hard to detect because it even might work in some cases, but at the same time cause crashes or data corruption and we can't really predict it. 
 
 3. Another way the `get_student(...)` function could be implemented is as follows:
 
