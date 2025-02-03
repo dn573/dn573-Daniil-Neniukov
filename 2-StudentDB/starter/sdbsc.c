@@ -66,7 +66,7 @@ if (id < MIN_STD_ID || id > MAX_STD_ID || s == NULL) {
         return ERR_DB_OP;
     }
 
-    off_t offset = (off_t)(id - 1) * STUDENT_RECORD_SIZE;
+    off_t offset = (off_t)id * STUDENT_RECORD_SIZE;
 
     if (lseek(fd, offset, SEEK_SET) == (off_t)-1) {
         printf(M_ERR_DB_READ);
@@ -115,7 +115,7 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa)
 {
     student_t existing_student;
 
-    off_t offset = (off_t)(id - 1) * STUDENT_RECORD_SIZE;
+    off_t offset = (off_t)id * STUDENT_RECORD_SIZE;
 
     if (lseek(fd, offset, SEEK_SET) == (off_t)-1) {
         printf(M_ERR_DB_READ);
@@ -142,27 +142,6 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa)
     new_student.lname[sizeof(new_student.lname) - 1] = '\0';
 
     new_student.gpa = gpa;
-
-    off_t file_end = lseek(fd, 0, SEEK_END);
-    if (file_end == (off_t)-1) {
-        printf(M_ERR_DB_READ);
-        return ERR_DB_FILE;
-    }
-
-    off_t required_size = offset + STUDENT_RECORD_SIZE;
-    struct stat st;
-
-    if (fstat(fd, &st) == -1) {
-        printf(M_ERR_DB_READ);
-        return ERR_DB_FILE;
-    }
-
-    if (st.st_size < required_size) {
-        if (ftruncate(fd, required_size) == -1) {
-            printf(M_ERR_DB_WRITE);
-            return ERR_DB_FILE;
-        }
-    }
 
     if (lseek(fd, offset, SEEK_SET) == (off_t)-1) {
         printf(M_ERR_DB_WRITE);
@@ -214,7 +193,7 @@ int del_student(int fd, int id)
         return ERR_DB_FILE;
     }
 
-    off_t offset = (off_t)(id - 1) * STUDENT_RECORD_SIZE;
+    off_t offset = (off_t)id * STUDENT_RECORD_SIZE;
     if (lseek(fd, offset, SEEK_SET) == (off_t)-1) {
         printf(M_ERR_DB_WRITE);
         return ERR_DB_FILE;
