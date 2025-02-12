@@ -2,9 +2,11 @@
 triple:          'arm64-apple-darwin'
 binary-path:     dsh
 relocations:
-  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100003818, symSize: 0x2CC }
-  - { offsetInCU: 0x41, offset: 0x41, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x100003818, symSize: 0x2CC }
-  - { offsetInCU: 0x26, offset: 0x15C, size: 0x8, addend: 0x0, symName: _trim_spaces, symObjAddr: 0x0, symBinAddr: 0x100003AE4, symSize: 0x104 }
-  - { offsetInCU: 0x48, offset: 0x17E, size: 0x8, addend: 0x0, symName: _trim_spaces, symObjAddr: 0x0, symBinAddr: 0x100003AE4, symSize: 0x104 }
-  - { offsetInCU: 0x7E, offset: 0x1B4, size: 0x8, addend: 0x0, symName: _build_cmd_list, symObjAddr: 0x104, symBinAddr: 0x100003BE8, symSize: 0x27C }
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x1000036D8, symSize: 0x3B8 }
+  - { offsetInCU: 0x3F, offset: 0x3F, size: 0x8, addend: 0x0, symName: _dragon_txt_gz, symObjAddr: 0x3B8, symBinAddr: 0x100008000, symSize: 0x0 }
+  - { offsetInCU: 0x6F, offset: 0x6F, size: 0x8, addend: 0x0, symName: _dragon_txt_gz_len, symObjAddr: 0x53C, symBinAddr: 0x100008184, symSize: 0x0 }
+  - { offsetInCU: 0xA5, offset: 0xA5, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x0, symBinAddr: 0x1000036D8, symSize: 0x3B8 }
+  - { offsetInCU: 0x26, offset: 0x20A, size: 0x8, addend: 0x0, symName: _trim_spaces, symObjAddr: 0x0, symBinAddr: 0x100003A90, symSize: 0x104 }
+  - { offsetInCU: 0x48, offset: 0x22C, size: 0x8, addend: 0x0, symName: _trim_spaces, symObjAddr: 0x0, symBinAddr: 0x100003A90, symSize: 0x104 }
+  - { offsetInCU: 0x7E, offset: 0x262, size: 0x8, addend: 0x0, symName: _build_cmd_list, symObjAddr: 0x104, symBinAddr: 0x100003B94, symSize: 0x27C }
 ...
