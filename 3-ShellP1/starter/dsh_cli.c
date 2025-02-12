@@ -23,7 +23,6 @@ int main()
 
         if (strcmp(cmd_buff, EXIT_CMD) == 0)
         {
-            printf("Exiting dsh...\n");
             exit(0);
         }
 
@@ -31,16 +30,20 @@ int main()
         
         if (rc == OK)
         {
-            printf(CMD_OK_HEADER, clist.num);
+        printf(CMD_OK_HEADER, clist.num);
             for (int i = 0; i < clist.num; i++)
             {
                 printf("<%d> %s", i + 1, clist.commands[i].exe);
                 if (strlen(clist.commands[i].args) > 0)
                 {
-                    printf(" [%s]", clist.commands[i].args);  
+                    printf(" [%s]", clist.commands[i].args);
                 }
-                printf("\n");
+                if (i < clist.num - 1)
+                {
+                    printf("\n");  
+                }
             }
+            printf("\n");
         }
 
         else if (rc == WARN_NO_CMDS)
