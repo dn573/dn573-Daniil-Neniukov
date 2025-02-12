@@ -37,11 +37,12 @@ int main()
                 printf("<%d> %s", i + 1, clist.commands[i].exe);
                 if (strlen(clist.commands[i].args) > 0)
                 {
-                    printf(" [%s]", clist.commands[i].args);
+                    printf(" [%s]", clist.commands[i].args);  
                 }
                 printf("\n");
             }
         }
+
         else if (rc == WARN_NO_CMDS)
         {
             printf(CMD_WARN_NO_CMD);

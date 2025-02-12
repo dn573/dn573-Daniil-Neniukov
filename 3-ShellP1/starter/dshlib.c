@@ -25,36 +25,35 @@ int build_cmd_list(char *cmd_line, command_list_t *clist)
     {
         if (cmd_count >= CMD_MAX)
         {
-            return ERR_TOO_MANY_COMMANDS;
+            return ERR_TOO_MANY_COMMANDS;  
         }
 
         cmd_ptr = trim_spaces(cmd_ptr);
 
-        
         char *exe = strtok(cmd_ptr, " ");
-        if (exe == NULL)
+        if (exe == NULL || strlen(exe) >= EXE_MAX)
         {
-            return WARN_NO_CMDS;
-        }
-        if (strlen(exe) >= EXE_MAX)
-        {
-            return ERR_CMD_OR_ARGS_TOO_BIG;
+            return ERR_CMD_OR_ARGS_TOO_BIG;  
         }
         strcpy(clist->commands[cmd_count].exe, exe);
 
-        
         char *arg = strtok(NULL, "");
         if (arg != NULL)
         {
             if (strlen(arg) >= ARG_MAX)
             {
-                return ERR_CMD_OR_ARGS_TOO_BIG;
+                return ERR_CMD_OR_ARGS_TOO_BIG;  
             }
             strcpy(clist->commands[cmd_count].args, arg);
         }
 
         cmd_count++;
-        cmd_ptr = strtok(NULL, PIPE_STRING);
+        cmd_ptr = strtok(NULL, PIPE_STRING);  
+    }
+
+    if (cmd_count == 0)
+    {
+        return WARN_NO_CMDS;  
     }
 
     clist->num = cmd_count;
