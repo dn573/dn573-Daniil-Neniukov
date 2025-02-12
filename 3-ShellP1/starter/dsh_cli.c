@@ -2,8 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "dshlib.h"
-#include <zlib.h>
-#include "dragon_compressed.h"
+#include "dragon_raw.h"
 
 int main()
 {
@@ -30,25 +29,8 @@ int main()
 
         if (strcmp(cmd_buff, "dragon") == 0)
         {
-            unsigned char dragon_dec[65536];
-            memset(dragon_dec, 0, sizeof(dragon_dec));
-
-            uLongf dragon_dec_size = sizeof(dragon_dec);
-
-            int zrc = uncompress(
-                dragon_dec, &dragon_dec_size,
-                dragon_txt_gz, (uLongf)dragon_txt_gz_len
-            );
-
-            if (zrc == Z_OK)
-            {
-                printf("%s\n", dragon_dec);
-            }
-            else
-        {
-                fprintf(stderr, "Error decompressing dragon (zrc=%d)\n", zrc);
-            }
-
+            fwrite(dragon_txt, 1, dragon_txt_len, stdout);
+            printf("\n");
             continue;
         }
 

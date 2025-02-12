@@ -14,7 +14,7 @@ all: $(TARGET)
 
 # Compile source to executable
 $(TARGET): $(SRCS) $(HDRS)
-	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) -lz
+	$(CC) $(CFLAGS) -o $(TARGET) $(SRCS) 
 
 # Clean up build files
 clean:
