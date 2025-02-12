@@ -2,38 +2,62 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
-
 #include "dshlib.h"
 
-/*
- *  build_cmd_list
- *    cmd_line:     the command line from the user
- *    clist *:      pointer to clist structure to be populated
- *
- *  This function builds the command_list_t structure passed by the caller
- *  It does this by first splitting the cmd_line into commands by spltting
- *  the string based on any pipe characters '|'.  It then traverses each
- *  command.  For each command (a substring of cmd_line), it then parses
- *  that command by taking the first token as the executable name, and
- *  then the remaining tokens as the arguments.
- *
- *  NOTE your implementation should be able to handle properly removing
- *  leading and trailing spaces!
- *
- *  errors returned:
- *
- *    OK:                      No Error
- *    ERR_TOO_MANY_COMMANDS:   There is a limit of CMD_MAX (see dshlib.h)
- *                             commands.
- *    ERR_CMD_OR_ARGS_TOO_BIG: One of the commands provided by the user
- *                             was larger than allowed, either the
- *                             executable name, or the arg string.
- *
- *  Standard Library Functions You Might Want To Consider Using
- *      memset(), strcmp(), strcpy(), strtok(), strlen(), strchr()
- */
+char *trim_spaces(char *str)
+{
+    while (isspace((unsigned char)*str)) str++;  
+    if (*str == 0) return str;                   
+
+    char *end = str + strlen(str) - 1;
+    while (end > str && isspace((unsigned char)*end)) end--;  
+    end[1] = '\0';  
+    return str;
+}
+
 int build_cmd_list(char *cmd_line, command_list_t *clist)
 {
-    printf(M_NOT_IMPL);
-    return EXIT_NOT_IMPL;
+    memset(clist, 0, sizeof(command_list_t));  
+    char *cmd_ptr = strtok(cmd_line, PIPE_STRING);
+    int cmd_count = 0;
+
+    while (cmd_ptr != NULL)
+    {
+        if (cmd_count >= CMD_MAX)
+        {
+            return ERR_TOO_MANY_COMMANDS;
+        }
+
+        cmd_ptr = trim_spaces(cmd_ptr);
+
+        
+        char *exe = strtok(cmd_ptr, " ");
+        if (exe == NULL)
+        {
+            return WARN_NO_CMDS;
+        }
+        if (strlen(exe) >= EXE_MAX)
+        {
+            return ERR_CMD_OR_ARGS_TOO_BIG;
+        }
+        strcpy(clist->commands[cmd_count].exe, exe);
+
+        
+        char *arg = strtok(NULL, "");
+        if (arg != NULL)
+        {
+            if (strlen(arg) >= ARG_MAX)
+            {
+                return ERR_CMD_OR_ARGS_TOO_BIG;
+            }
+            strcpy(clist->commands[cmd_count].args, arg);
+        }
+
+        cmd_count++;
+        cmd_ptr = strtok(NULL, PIPE_STRING);
+    }
+
+    clist->num = cmd_count;
+    return OK;
 }
+
