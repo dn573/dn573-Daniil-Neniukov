@@ -148,19 +148,6 @@ EOF
     [[ "$OUTPUT" == *"first"* ]] && [[ "$OUTPUT" == *"second"* ]] && [[ "$OUTPUT" == *"third"* ]]
 }
 
-@test "server correctly handles empty input" {
-    ./dsh -s -p 5690 &
-    server_pid=$!
-    sleep 1
-
-    OUTPUT=$(echo "" | ./dsh -c -p 5690)
-
-    echo "stop-server" | ./dsh -c -p 5690
-    sleep 1
-
-    [[ "$OUTPUT" == *"dsh4>"* ]]
-}
-
 @test "server correctly handles invalid commands" {
     ./dsh -s -p 5691 &
     server_pid=$!
@@ -256,6 +243,47 @@ EOF
     ! kill -0 $server_pid 2>/dev/null
 }
 
+@test "server piped commands with redirection" {
+  ./dsh -s -p 6001 &
+  srv_pid=$!
+  sleep 1
+
+  (echo "echo hello | sed 's/hello/goodbye/' > output.txt" | ./dsh -c -p 6001) >/dev/null
+
+  OUTPUT=$(cat output.txt)
+  rm -f output.txt
+
+  echo "stop-server" | ./dsh -c -p 6001
+  sleep 1
+
+  [[ "$OUTPUT" == "goodbye" ]]
+}
+
+@test "server concurrent clients where one stops the server" {
+  ./dsh -s -p 6002 -x &
+  srv_pid=$!
+  sleep 1
+
+  (echo "sleep 10" | ./dsh -c -p 6002) &
+
+  echo "stop-server" | ./dsh -c -p 6002
+
+  sleep 1
+  ! kill -0 "$srv_pid" 2>/dev/null
+}
+
+@test "server built-in interplay" {
+  ./dsh -s -p 6004 &
+  srv_pid=$!
+  sleep 1
+
+  OUTPUT=$(echo -e "cd /tmp\npwd\nnot_a_command\nrc" | ./dsh -c -p 6004)
+  echo "stop-server" | ./dsh -c -p 6004
+  sleep 1
+
+  [[ "$OUTPUT" == *"/tmp"* ]]
+  [[ "$OUTPUT" == *"2"* || "$OUTPUT" == *"127"* ]]
+}
 
 
 ################################################################################

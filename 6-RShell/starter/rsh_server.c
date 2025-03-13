@@ -21,10 +21,24 @@
 volatile sig_atomic_t server_running = 1;
 int server_socket_fd = -1;
 
+static int server_socket_closed = 0;
+
+static void remove_single_quotes(char *str) {
+    char *dst = str;
+    while (*str) {
+        if (*str != '\'') {
+            *dst++ = *str;
+        }
+        str++;
+    }
+    *dst = '\0';
+}
+
 void sigint_handler(int signum) {
     (void)signum;
     server_running = 0;
-    if (server_socket_fd >= 0) {
+    if (server_socket_fd >= 0 && !server_socket_closed) {
+        server_socket_closed = 1;
         shutdown(server_socket_fd, SHUT_RDWR);
         close(server_socket_fd);
     }
@@ -33,7 +47,8 @@ void sigint_handler(int signum) {
 
 void sigchld_handler(int signum) {
     (void)signum;
-    while (waitpid(-1, NULL, WNOHANG) > 0);
+    while (waitpid(-1, NULL, WNOHANG) > 0) {
+    }
 }
 
 typedef struct {
@@ -42,10 +57,23 @@ typedef struct {
 
 void *handle_client(void *arg) {
     client_thread_args_t *args = (client_thread_args_t *)arg;
-    int result = exec_client_requests(args->cli_socket);
-    close(args->cli_socket);
+    int cli_sock = args->cli_socket;
     free(args);
-    pthread_exit((void *)(intptr_t)result);
+
+    int rc = exec_client_requests(cli_sock);
+
+    close(cli_sock);
+
+    if (rc == OK_EXIT) {
+        server_running = 0;
+        if (server_socket_fd >= 0 && !server_socket_closed) {
+            server_socket_closed = 1;
+            shutdown(server_socket_fd, SHUT_RDWR);
+            close(server_socket_fd);
+        }
+    }
+
+    pthread_exit(NULL);
 }
 
 
@@ -80,25 +108,25 @@ void *handle_client(void *arg) {
  */
 
 int start_server(char *ifaces, int port, int is_threaded) {
-    int svr_socket;
-    int rc;
-
-    signal(SIGINT, sigint_handler);  
+    signal(SIGINT, sigint_handler);
     signal(SIGCHLD, sigchld_handler);
 
-    svr_socket = boot_server(ifaces, port);
+    int svr_socket = boot_server(ifaces, port);
     if (svr_socket < 0) {
         perror("boot_server failed");
         return svr_socket;
     }
-
     server_socket_fd = svr_socket;
-    printf("Server listening on %s:%d\n", ifaces, port);  
+
+    printf("Server listening on %s:%d\n", ifaces, port);
     fflush(stdout);
 
-    rc = process_cli_requests(svr_socket, is_threaded);
-    stop_server(svr_socket);
+    int rc = process_cli_requests(svr_socket, is_threaded);
 
+    if (!server_socket_closed) {
+        server_socket_closed = 1;
+        stop_server(svr_socket);
+    }
     return rc;
 }
 
@@ -110,7 +138,7 @@ int start_server(char *ifaces, int port, int is_threaded) {
  *      This function simply returns the value of close() when closing
  *      the socket.  
  */
-int stop_server(int svr_socket){
+int stop_server(int svr_socket) {
     return close(svr_socket);
 }
 
@@ -227,16 +255,13 @@ int boot_server(char *ifaces, int port) {
  */
 
 int process_cli_requests(int svr_socket, int is_threaded) {
-    int cli_socket;
     struct sockaddr_in cli_addr;
     socklen_t cli_len = sizeof(cli_addr);
 
-    server_socket_fd = svr_socket;
-
     while (server_running) {
-        cli_socket = accept(svr_socket, (struct sockaddr *)&cli_addr, &cli_len);
+        int cli_socket = accept(svr_socket, (struct sockaddr *)&cli_addr, &cli_len);
         if (cli_socket < 0) {
-            if (!server_running) break;
+            if (!server_running) break;  
             if (errno == EINTR) continue;
             perror("accept");
             continue;
@@ -250,32 +275,45 @@ int process_cli_requests(int svr_socket, int is_threaded) {
                 close(cli_socket);
                 continue;
             }
-
             args->cli_socket = cli_socket;
-            if (pthread_create(&client_thread, NULL, handle_client, (void *)args) != 0) {
+
+            if (pthread_create(&client_thread, NULL, handle_client, args) != 0) {
                 perror("pthread_create");
                 free(args);
                 close(cli_socket);
                 continue;
             }
-
             pthread_detach(client_thread);
+
         } else {
             pid_t pid = fork();
             if (pid == 0) {
                 close(svr_socket);
-                exit(exec_client_requests(cli_socket));
+                int rc = exec_client_requests(cli_socket);
+                close(cli_socket);
+                exit((unsigned char)rc);
+
             } else if (pid > 0) {
                 close(cli_socket);
-                waitpid(-1, NULL, WNOHANG);
+                int status;
+                waitpid(pid, &status, 0);
+
+                if (WIFEXITED(status)) {
+                    int child_code = (signed char)WEXITSTATUS(status);
+                    if (child_code == OK_EXIT) {
+                        printf("Client requested server to stop, stopping...\n");
+                        server_running = 0;
+                        break;
+                    }
+                }
             } else {
                 perror("fork");
+                close(cli_socket);
             }
         }
     }
 
-    stop_server(svr_socket);
-    return OK_EXIT;
+    return OK; 
 }
 
 
@@ -323,27 +361,24 @@ int process_cli_requests(int svr_socket, int is_threaded) {
 
 int exec_client_requests(int cli_socket) {
     char io_buff[RDSH_COMM_BUFF_SZ];
-    int recv_size;
-    command_list_t cmd_list;
     int last_return_code = 0;
 
     while (1) {
-        recv_size = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ - 1, 0);
+        int recv_size = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ - 1, 0);
         if (recv_size <= 0) {
             break;
         }
-
         io_buff[recv_size] = '\0';
 
         if (strcmp(io_buff, "exit") == 0) {
             break;
         }
-
         if (strcmp(io_buff, "stop-server") == 0) {
+            send_message_string(cli_socket, "Stopping server\n");
+            shutdown(cli_socket, SHUT_RDWR);
             close(cli_socket);
-            return OK_EXIT;
+            return OK_EXIT; 
         }
-
         if (strncmp(io_buff, "cd ", 3) == 0) {
             char *dir = io_buff + 3;
             if (chdir(dir) != 0) {
@@ -355,7 +390,6 @@ int exec_client_requests(int cli_socket) {
             send_message_eof(cli_socket);
             continue;
         }
-
         if (strcmp(io_buff, "rc") == 0) {
             char rc_buff[16];
             snprintf(rc_buff, sizeof(rc_buff), "%d\n", last_return_code);
@@ -364,15 +398,28 @@ int exec_client_requests(int cli_socket) {
             continue;
         }
 
-        if (build_cmd_list(io_buff, &cmd_list) == OK) {
+        command_list_t cmd_list;
+        int rc_build = build_cmd_list(io_buff, &cmd_list);
+
+        if (rc_build == OK) {
+            for (int c = 0; c < cmd_list.num; c++) {
+                cmd_buff_t *cb = &cmd_list.commands[c];
+                for (int a = 0; a < cb->argc; a++) {
+                    remove_single_quotes(cb->argv[a]);
+                }
+            }
+
             last_return_code = rsh_execute_pipeline(cli_socket, &cmd_list);
+
+        } else if (rc_build == WARN_NO_CMDS) {
+            send_message_eof(cli_socket);
+            continue;
+
         } else {
-            send(cli_socket, "Command not found in PATH\n", 22, 0);
+            send(cli_socket, "Command not found in PATH\n", 26, 0);
             send_message_eof(cli_socket);
         }
     }
-
-    close(cli_socket);
     return OK;
 }
 
@@ -391,7 +438,11 @@ int exec_client_requests(int cli_socket) {
  *           we were unable to send the EOF character. 
  */
 int send_message_eof(int cli_socket) {
-    return send(cli_socket, &RDSH_EOF_CHAR, sizeof(RDSH_EOF_CHAR), 0) == 1 ? OK : ERR_RDSH_COMMUNICATION;
+    ssize_t s = send(cli_socket, &RDSH_EOF_CHAR, 1, 0);
+    if (s < 0 || s == 0) {
+        return ERR_RDSH_COMMUNICATION;
+    }
+    return OK;
 }
 
 
@@ -414,7 +465,8 @@ int send_message_eof(int cli_socket) {
  *           we were unable to send the message followed by the EOF character. 
  */
 int send_message_string(int cli_socket, char *buff) {
-    if (send(cli_socket, buff, strlen(buff), 0) < 0) {
+    ssize_t sent = send(cli_socket, buff, strlen(buff), 0);
+    if (sent < 0 || (size_t)sent < strlen(buff)) {
         return ERR_RDSH_COMMUNICATION;
     }
     return send_message_eof(cli_socket);
@@ -461,70 +513,82 @@ int send_message_string(int cli_socket, char *buff) {
  */
 
 int rsh_execute_pipeline(int cli_sock, command_list_t *clist) {
-    int pipes[clist->num - 1][2];
-    pid_t pids[clist->num];
+    int num_cmds = clist->num;
+    if (num_cmds < 1) {
+        return 0;
+    }
+
+    int pipes[num_cmds - 1][2];
+    pid_t pids[num_cmds];
     int status, exit_code = 0;
 
-    for (int i = 0; i < clist->num - 1; i++) {
+    for (int i = 0; i < num_cmds - 1; i++) {
         if (pipe(pipes[i]) == -1) {
             perror("pipe");
             return ERR_RDSH_COMMUNICATION;
         }
     }
 
-    for (int i = 0; i < clist->num; i++) {
+    for (int i = 0; i < num_cmds; i++) {
         pids[i] = fork();
-
         if (pids[i] == 0) {
-            if (i == 0) dup2(cli_sock, STDIN_FILENO);
-            if (i == clist->num - 1) {
+            if (i == 0) {
+                dup2(cli_sock, STDIN_FILENO);
+            }
+            if (i == num_cmds - 1) {
                 dup2(cli_sock, STDOUT_FILENO);
                 dup2(cli_sock, STDERR_FILENO);
             }
+            if (i > 0) {
+                dup2(pipes[i - 1][0], STDIN_FILENO);
+            }
+            if (i < num_cmds - 1) {
+                dup2(pipes[i][1], STDOUT_FILENO);
+            }
 
-            if (i > 0) dup2(pipes[i - 1][0], STDIN_FILENO);
-            if (i < clist->num - 1) dup2(pipes[i][1], STDOUT_FILENO);
-
-            for (int j = 0; j < clist->num - 1; j++) {
+            for (int j = 0; j < num_cmds - 1; j++) {
                 close(pipes[j][0]);
                 close(pipes[j][1]);
             }
 
-            for (int j = 0; j < clist->commands[i].argc; j++) {
-                if (strcmp(clist->commands[i].argv[j], ">") == 0) {
-                    if (j + 1 < clist->commands[i].argc) {
-                        int fd = open(clist->commands[i].argv[j + 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+            for (int argi = 0; argi < clist->commands[i].argc; argi++) {
+                if (strcmp(clist->commands[i].argv[argi], ">") == 0) {
+                    if (argi + 1 < clist->commands[i].argc) {
+                        int fd = open(clist->commands[i].argv[argi + 1],
+                                      O_WRONLY | O_CREAT | O_TRUNC, 0644);
                         if (fd < 0) {
                             perror("open");
                             exit(1);
                         }
                         dup2(fd, STDOUT_FILENO);
                         close(fd);
-                        clist->commands[i].argv[j] = NULL;
+                        clist->commands[i].argv[argi] = NULL;
                     }
                     break;
                 }
             }
 
-
             execvp(clist->commands[i].argv[0], clist->commands[i].argv);
-
             send_message_string(cli_sock, "Command not found in PATH\n");
-
             perror("execvp");
             exit(127);
 
+        } else if (pids[i] < 0) {
+            perror("fork");
+            return ERR_RDSH_COMMUNICATION;
         }
     }
 
-    for (int i = 0; i < clist->num - 1; i++) {
+    for (int i = 0; i < num_cmds - 1; i++) {
         close(pipes[i][0]);
         close(pipes[i][1]);
     }
 
-    for (int i = 0; i < clist->num; i++) {
+    for (int i = 0; i < num_cmds; i++) {
         waitpid(pids[i], &status, 0);
-        if (i == clist->num - 1) exit_code = WEXITSTATUS(status);
+        if (i == num_cmds - 1) {
+            exit_code = WEXITSTATUS(status);
+        }
     }
 
     send_message_eof(cli_sock);
